@@ -49,10 +49,38 @@
   const el = id => document.getElementById(id);
   const ui = {quiz:el('quiz'),result:el('result'),questionCount:el('questionCount'),liveScore:el('liveScore'),progress:el('progress'),speakBtn:el('speakBtn'),speechWarning:el('speechWarning'),answerForm:el('answerForm'),answer:el('answer'),feedback:el('feedback'),checkBtn:el('checkBtn'),nextBtn:el('nextBtn'),scoreCircle:el('scoreCircle'),scoreMessage:el('scoreMessage'),againBtn:el('againBtn')};
   let words=[],index=0,score=0,checked=false;
+
+  function getPreferredVoice() {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices();
+    const preferredCodes = ['en-US', 'en-GB', 'en-AU', 'en-CA', 'en-IE'];
+    for (const code of preferredCodes) {
+      const match = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(code.toLowerCase()));
+      if (match) return match;
+    }
+    return voices.find(v => /en/i.test(v.lang)) || voices[0] || null;
+  }
+
   function shuffle(list){const a=[...list];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
   function startRound(){window.speechSynthesis?.cancel();words=shuffle([...new Set(ALL_WORDS)]).slice(0,ROUND_SIZE);index=0;score=0;ui.quiz.classList.remove('hidden');ui.result.classList.add('hidden');renderQuestion()}
   function renderQuestion(){checked=false;ui.questionCount.textContent=`Question ${index+1} of ${ROUND_SIZE}`;ui.liveScore.textContent=`Score: ${score}`;ui.progress.style.width=`${((index+1)/ROUND_SIZE)*100}%`;ui.answer.value='';ui.answer.focus();ui.feedback.classList.add('hidden');ui.feedback.textContent='';ui.checkBtn.classList.remove('hidden');ui.nextBtn.classList.add('hidden')}
-  function speak(){if(!('speechSynthesis' in window)){ui.speechWarning.classList.remove('hidden');return}ui.speechWarning.classList.add('hidden');window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(words[index]);utterance.lang='en-US';window.speechSynthesis.speak(utterance)}
+  function speak(){
+    if(!('speechSynthesis' in window)){ui.speechWarning.classList.remove('hidden');return}
+    ui.speechWarning.classList.add('hidden');
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(words[index]);
+    const preferredVoice = getPreferredVoice();
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+      utterance.lang = preferredVoice.lang || 'en-US';
+    } else {
+      utterance.lang = 'en-US';
+    }
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
+  }
   function check(){if(checked)return;const attempt=ui.answer.value.trim().toLowerCase();if(!attempt){ui.answer.focus();return}checked=true;const correct=attempt===words[index].toLowerCase();if(correct)score++;ui.feedback.classList.remove('hidden');ui.feedback.textContent=correct?`Correct! “${words[index]}” is spelled correctly.`:`Not quite — the correct spelling is “${words[index]}”.`;ui.feedback.classList.toggle('correct',correct);ui.feedback.classList.toggle('incorrect',!correct);ui.checkBtn.classList.add('hidden');ui.nextBtn.classList.remove('hidden');ui.liveScore.textContent=`Score: ${score}`}
   function next(){window.speechSynthesis?.cancel();if(index<ROUND_SIZE-1){index++;renderQuestion()}else finish()}
   function finish(){ui.quiz.classList.add('hidden');ui.result.classList.remove('hidden');ui.scoreCircle.textContent=`${score}/${ROUND_SIZE}`;const note=score===10?'Excellent, a perfect score!':score>=8?'Great work!':score>=5?'Nice effort!':'Keep practising — you’ll get there!';ui.scoreMessage.textContent=`${note} You scored ${score} out of ${ROUND_SIZE}.`}
